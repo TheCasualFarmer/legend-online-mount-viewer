@@ -54,13 +54,22 @@
             overflow: hidden;
             position: relative;
             transition: all 0.3s ease;
-            cursor: pointer;
         }
         .mount-box:hover {
             border-color: #00E676;
             transform: scale(1.03);
             box-shadow: 0 0 15px rgba(0, 230, 118, 0.4);
             z-index: 2;
+        }
+        /* طبقة شفافة فوق الفلاش عشان لقطة الكليك تشتغل من غير مشاكل */
+        .click-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 5;
+            cursor: pointer;
         }
         .mount-name {
             position: absolute;
@@ -167,6 +176,17 @@
     </div>
 
     <script>
+        // إعدادات قوية لإجبار الفلاش على التصغير والتشغيل التلقائي
+        window.RufflePlayer = window.RufflePlayer || {};
+        window.RufflePlayer.config = {
+            autoplay: "on",
+            unmuteOverlay: "hidden",
+            backgroundColor: null,
+            scale: "showAll",
+            forceScale: true,      
+            quality: "low"         
+        };
+
         const baseUrl = "https://res353loar.creaction-network.com/equip_show/";
         
         const mountPaths = [
@@ -197,7 +217,12 @@
                 currentMounts.forEach(path => {
                     const box = document.createElement('div');
                     box.className = 'mount-box';
-                    box.onclick = () => openModal(path);
+                    
+                    // طبقة شفافة لاستقبال كليك الماوس بدون ما الفلاش يعلقها
+                    const overlay = document.createElement('div');
+                    overlay.className = 'click-overlay';
+                    overlay.onclick = () => openModal(path);
+                    box.appendChild(overlay);
                     
                     let cleanName = path.split('/')[0].replace('mount_', '').replace('mouth_', '');
                     
@@ -209,6 +234,10 @@
                     const player = ruffle.createPlayer();
                     player.style.width = "100%";
                     player.style.height = "100%";
+                    player.style.position = "absolute";
+                    player.style.top = "0";
+                    player.style.left = "0";
+                    player.style.zIndex = "1";
                     box.appendChild(player);
 
                     const fullUrl = `${baseUrl}${path}`;
