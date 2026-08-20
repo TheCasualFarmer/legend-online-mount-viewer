@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Legend Online | SWF Viewer</title>
+    <title>Legend Online | Mounts Gallery</title>
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700&display=swap" rel="stylesheet">
+    <!-- استدعاء Ruffle لتشغيل الفلاش -->
     <script src="https://unpkg.com/@ruffle-rs/ruffle"></script>
     <style>
         body {
@@ -20,114 +21,191 @@
         }
         .container {
             width: 100%;
-            max-width: 750px;
+            max-width: 1200px; /* تم تكبير العرض ليناسب 4 مطايا في الصف */
             background-color: #1e1e1e;
-            padding: 35px;
+            padding: 30px;
             border-radius: 15px;
             box-shadow: 0 4px 20px rgba(0,0,0,0.6);
             text-align: center;
         }
         h2 {
             color: #1f538d;
-            font-size: 28px;
-            margin-bottom: 25px;
+            font-size: 30px;
+            margin-bottom: 30px;
             font-weight: 700;
         }
-        .input-group {
-            display: flex;
-            gap: 12px;
+        
+        /* تصميم شبكة العرض (Grid) */
+        .gallery-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr); /* 4 أعمدة */
+            gap: 20px; /* المسافة بين المربعات */
             margin-bottom: 30px;
         }
-        input {
-            flex: 1;
-            padding: 14px 18px;
-            border-radius: 10px;
-            border: 1px solid #333;
-            background-color: #2b2b2b;
-            color: white;
-            font-size: 16px;
-            font-family: 'Tajawal', sans-serif;
-            outline: none;
-            direction: ltr; /* مهم عشان الرابط يظهر صح */
-        }
-        input:focus { border-color: #1f538d; }
-        button {
-            padding: 14px 30px;
-            background-color: #1f538d;
-            color: white;
-            border: none;
-            border-radius: 10px;
-            cursor: pointer;
-            font-size: 17px;
-            font-weight: bold;
-            font-family: 'Tajawal', sans-serif;
-            transition: background 0.3s;
-        }
-        button:hover { background-color: #143a63; }
         
-        /* صندوق عرض الفلاش */
-        .stage-container {
-            width: 100%;
-            height: 450px;
+        /* تصميم مربع المطية الواحد */
+        .mount-box {
             background-color: #000;
             border: 2px solid #2b2b2b;
             border-radius: 12px;
+            height: 250px;
             display: flex;
             align-items: center;
             justify-content: center;
             overflow: hidden;
             position: relative;
+            transition: border-color 0.3s;
         }
-        .placeholder-text {
-            color: #555;
-            font-size: 20px;
+        .mount-box:hover {
+            border-color: #1f538d;
+        }
+        .mount-name {
+            position: absolute;
+            bottom: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 14px;
+            color: #00E676;
+            z-index: 10;
+        }
+
+        /* أزرار التقليب (Pagination) */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+        }
+        .pagination button {
+            padding: 12px 25px;
+            background-color: #1f538d;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 18px;
             font-weight: bold;
+            font-family: 'Tajawal', sans-serif;
+            transition: background 0.3s;
+        }
+        .pagination button:hover:not(:disabled) {
+            background-color: #143a63;
+        }
+        .pagination button:disabled {
+            background-color: #333;
+            color: #777;
+            cursor: not-allowed;
+        }
+        .page-info {
+            font-size: 18px;
+            font-weight: bold;
+            color: #A9B7C6;
         }
     </style>
 </head>
 <body>
 
     <div class="container">
-        <h2>مستعرض أزياء وملفات Legend Online</h2>
-        <div class="input-group">
-            <input type="text" id="swfUrl" placeholder="http://res.../fashion.swf الصق رابط الـ SWF هنا">
-            <button onclick="loadSWF()">عــرض الأن</button>
-        </div>
+        <h2>معرض مطايا Legend Online</h2>
         
-        <div class="stage-container" id="stage">
-            <div class="placeholder-text" id="placeholder">سيتم عرض الشكل هنا...</div>
+        <!-- هنا سيتم رسم شبكة المطايا بواسطة الجافاسكربت -->
+        <div class="gallery-grid" id="gallery"></div>
+        
+        <!-- أزرار التقليب -->
+        <div class="pagination">
+            <button id="nextBtn" onclick="nextPage()">التالي ❯</button>
+            <span class="page-info" id="pageInfo">صفحة 1 من 1</span>
+            <button id="prevBtn" onclick="prevPage()">❮ السابق</button>
         </div>
     </div>
 
     <script>
-        function loadSWF() {
-            const urlInput = document.getElementById('swfUrl').value.trim();
-            if (!urlInput) {
-                alert("يرجى إدخال رابط الملف أولاً!");
-                return;
-            }
+        // 1. الرابط الأساسي للسيرفر
+        const baseUrl = "https://res353loar.creaction-network.com/equip_show/";
+        
+        // 2. قائمة بأسماء المطايا (هنا لازم تضيف كل الأسماء اللي تعرفها)
+        const mountNames = [
+            "mount_skhorse_red",
+            "mount_skhorse_blue", // مجرد مثال
+            "mount_dragon_gold",  // مجرد مثال
+            "mount_wolf_dark",    // مجرد مثال
+            "mount_tiger_white",  // مجرد مثال
+            "mount_lion_fire",    // مجرد مثال
+            "mount_bear_ice",     // مجرد مثال
+            "mount_eagle_wind",   // مجرد مثال
+            "mount_phoenix",      // بداية الصفحة الثانية (مثال)
+            "mount_griffin"       // مثال
+            // ضيف كل الأسماء هنا بين علامات تنصيص ومفصولة بفاصلة
+        ];
 
-            const stage = document.getElementById('stage');
-            
-            // تفريغ الصندوق من أي ملف فلاش قديم قبل عرض الجديد
-            stage.innerHTML = ''; 
+        let currentPage = 1;
+        const itemsPerPage = 8; // 4 في الصف الأول + 4 في الصف الثاني
 
-            // إنشاء مشغل الفلاش
+        function renderGallery() {
+            const gallery = document.getElementById('gallery');
+            gallery.innerHTML = ''; // مسح القديم
+
+            // حساب المطايا اللي هتتعرض في الصفحة الحالية
+            const startIndex = (currentPage - 1) * itemsPerPage;
+            const endIndex = startIndex + itemsPerPage;
+            const currentMounts = mountNames.slice(startIndex, endIndex);
+
             window.RufflePlayer = window.RufflePlayer || {};
             const ruffle = window.RufflePlayer.newest();
-            const player = ruffle.createPlayer();
-            
-            // ضبط مقاسات المشغل لتملا الصندوق
-            player.style.width = "100%";
-            player.style.height = "100%";
-            
-            // إضافة المشغل للصندوق
-            stage.appendChild(player);
 
-            // إرسال الرابط للباك إند بتاعنا عشان يتخطى الحماية ويجيب الملف
-            const proxyUrl = `/api/proxy_swf?url=${encodeURIComponent(urlInput)}`;
-            player.load(proxyUrl);
+            // رسم كل مطية في الصفحة
+            currentMounts.forEach(mount => {
+                const box = document.createElement('div');
+                box.className = 'mount-box';
+                
+                // إضافة اسم المطية تحت
+                const nameLabel = document.createElement('div');
+                nameLabel.className = 'mount-name';
+                nameLabel.innerText = mount;
+                box.appendChild(nameLabel);
+
+                // إضافة مشغل الفلاش
+                const player = ruffle.createPlayer();
+                player.style.width = "100%";
+                player.style.height = "100%";
+                box.appendChild(player);
+                gallery.appendChild(box);
+
+                // تحميل ملف الـ SWF عبر الباك إند بتاعنا
+                const fullUrl = `${baseUrl}${mount}/2.swf`;
+                player.load(`/api/proxy_swf?url=${encodeURIComponent(fullUrl)}`);
+            });
+
+            updatePagination();
         }
+
+        function updatePagination() {
+            const totalPages = Math.ceil(mountNames.length / itemsPerPage) || 1;
+            document.getElementById('pageInfo').innerText = `صفحة ${currentPage} من ${totalPages}`;
+            
+            // تعطيل وتشغيل الأزرار
+            document.getElementById('prevBtn').disabled = currentPage === 1;
+            document.getElementById('nextBtn').disabled = currentPage === totalPages;
+        }
+
+        function nextPage() {
+            const totalPages = Math.ceil(mountNames.length / itemsPerPage);
+            if (currentPage < totalPages) {
+                currentPage++;
+                renderGallery();
+            }
+        }
+
+        function prevPage() {
+            if (currentPage > 1) {
+                currentPage--;
+                renderGallery();
+            }
+        }
+
+        // تشغيل العرض أول ما الصفحة تفتح
+        window.addEventListener("load", renderGallery);
     </script>
 </body>
 </html>
