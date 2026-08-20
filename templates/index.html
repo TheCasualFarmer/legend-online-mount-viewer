@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Legend Online | SWF Viewer</title>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/@ruffle-rs/ruffle"></script>
+    <style>
+        body {
+            background-color: #121212;
+            color: #ffffff;
+            font-family: 'Tajawal', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 40px 20px;
+        }
+        .container {
+            width: 100%;
+            max-width: 750px;
+            background-color: #1e1e1e;
+            padding: 35px;
+            border-radius: 15px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+            text-align: center;
+        }
+        h2 {
+            color: #1f538d;
+            font-size: 28px;
+            margin-bottom: 25px;
+            font-weight: 700;
+        }
+        .input-group {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 30px;
+        }
+        input {
+            flex: 1;
+            padding: 14px 18px;
+            border-radius: 10px;
+            border: 1px solid #333;
+            background-color: #2b2b2b;
+            color: white;
+            font-size: 16px;
+            font-family: 'Tajawal', sans-serif;
+            outline: none;
+            direction: ltr; /* مهم عشان الرابط يظهر صح */
+        }
+        input:focus { border-color: #1f538d; }
+        button {
+            padding: 14px 30px;
+            background-color: #1f538d;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 17px;
+            font-weight: bold;
+            font-family: 'Tajawal', sans-serif;
+            transition: background 0.3s;
+        }
+        button:hover { background-color: #143a63; }
+        
+        /* صندوق عرض الفلاش */
+        .stage-container {
+            width: 100%;
+            height: 450px;
+            background-color: #000;
+            border: 2px solid #2b2b2b;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+        }
+        .placeholder-text {
+            color: #555;
+            font-size: 20px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h2>مستعرض أزياء وملفات Legend Online</h2>
+        <div class="input-group">
+            <input type="text" id="swfUrl" placeholder="http://res.../fashion.swf الصق رابط الـ SWF هنا">
+            <button onclick="loadSWF()">عــرض الأن</button>
+        </div>
+        
+        <div class="stage-container" id="stage">
+            <div class="placeholder-text" id="placeholder">سيتم عرض الشكل هنا...</div>
+        </div>
+    </div>
+
+    <script>
+        function loadSWF() {
+            const urlInput = document.getElementById('swfUrl').value.trim();
+            if (!urlInput) {
+                alert("يرجى إدخال رابط الملف أولاً!");
+                return;
+            }
+
+            const stage = document.getElementById('stage');
+            
+            // تفريغ الصندوق من أي ملف فلاش قديم قبل عرض الجديد
+            stage.innerHTML = ''; 
+
+            // إنشاء مشغل الفلاش
+            window.RufflePlayer = window.RufflePlayer || {};
+            const ruffle = window.RufflePlayer.newest();
+            const player = ruffle.createPlayer();
+            
+            // ضبط مقاسات المشغل لتملا الصندوق
+            player.style.width = "100%";
+            player.style.height = "100%";
+            
+            // إضافة المشغل للصندوق
+            stage.appendChild(player);
+
+            // إرسال الرابط للباك إند بتاعنا عشان يتخطى الحماية ويجيب الملف
+            const proxyUrl = `/api/proxy_swf?url=${encodeURIComponent(urlInput)}`;
+            player.load(proxyUrl);
+        }
+    </script>
+</body>
+</html>
