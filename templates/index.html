@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Legend Online | Mounts Gallery</title>
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700&display=swap" rel="stylesheet">
-    <!-- استدعاء Ruffle لتشغيل الفلاش -->
     <script src="https://unpkg.com/@ruffle-rs/ruffle"></script>
     <style>
         body {
@@ -17,74 +16,77 @@
             align-items: center;
             min-height: 100vh;
             margin: 0;
-            padding: 40px 20px;
+            padding: 30px 20px;
         }
         .container {
             width: 100%;
-            max-width: 1200px; /* تم تكبير العرض ليناسب 4 مطايا في الصف */
+            max-width: 1100px;
             background-color: #1e1e1e;
             padding: 30px;
-            border-radius: 15px;
+            border-radius: 12px;
             box-shadow: 0 4px 20px rgba(0,0,0,0.6);
             text-align: center;
+            position: relative;
         }
         h2 {
             color: #1f538d;
-            font-size: 30px;
-            margin-bottom: 30px;
+            font-size: 28px;
+            margin-bottom: 25px;
             font-weight: 700;
         }
-        
-        /* تصميم شبكة العرض (Grid) */
-        .gallery-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr); /* 4 أعمدة */
-            gap: 20px; /* المسافة بين المربعات */
-            margin-bottom: 30px;
+        .page {
+            display: none;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-bottom: 25px;
         }
-        
-        /* تصميم مربع المطية الواحد */
+        .page.active {
+            display: grid;
+        }
         .mount-box {
             background-color: #000;
             border: 2px solid #2b2b2b;
-            border-radius: 12px;
-            height: 250px;
+            border-radius: 10px;
+            height: 220px;
             display: flex;
             align-items: center;
             justify-content: center;
             overflow: hidden;
             position: relative;
-            transition: border-color 0.3s;
+            transition: all 0.3s ease;
+            cursor: pointer;
         }
         .mount-box:hover {
-            border-color: #1f538d;
+            border-color: #00E676;
+            transform: scale(1.03);
+            box-shadow: 0 0 15px rgba(0, 230, 118, 0.4);
+            z-index: 2;
         }
         .mount-name {
             position: absolute;
-            bottom: 10px;
-            background: rgba(0, 0, 0, 0.7);
-            padding: 5px 10px;
-            border-radius: 5px;
-            font-size: 14px;
+            bottom: 8px;
+            background: rgba(0, 0, 0, 0.85);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 13px;
             color: #00E676;
             z-index: 10;
+            pointer-events: none;
         }
-
-        /* أزرار التقليب (Pagination) */
         .pagination {
             display: flex;
             justify-content: center;
             align-items: center;
-            gap: 20px;
+            gap: 15px;
         }
         .pagination button {
-            padding: 12px 25px;
+            padding: 10px 20px;
             background-color: #1f538d;
             color: white;
             border: none;
-            border-radius: 10px;
+            border-radius: 8px;
             cursor: pointer;
-            font-size: 18px;
+            font-size: 16px;
             font-weight: bold;
             font-family: 'Tajawal', sans-serif;
             transition: background 0.3s;
@@ -98,9 +100,48 @@
             cursor: not-allowed;
         }
         .page-info {
-            font-size: 18px;
+            font-size: 16px;
             font-weight: bold;
             color: #A9B7C6;
+        }
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.92);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            backdrop-filter: blur(5px);
+        }
+        .modal-content {
+            width: 800px;
+            height: 600px;
+            background-color: #000;
+            border: 2px solid #1f538d;
+            border-radius: 12px;
+            position: relative;
+            box-shadow: 0 0 30px rgba(31, 83, 141, 0.6);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .close-btn {
+            position: absolute;
+            top: -40px;
+            right: 0;
+            color: #FF3366;
+            font-size: 35px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: color 0.3s;
+        }
+        .close-btn:hover {
+            color: #ff0040;
         }
     </style>
 </head>
@@ -109,103 +150,128 @@
     <div class="container">
         <h2>معرض مطايا Legend Online</h2>
         
-        <!-- هنا سيتم رسم شبكة المطايا بواسطة الجافاسكربت -->
-        <div class="gallery-grid" id="gallery"></div>
+        <div id="gallery-container"></div>
         
-        <!-- أزرار التقليب -->
         <div class="pagination">
             <button id="nextBtn" onclick="nextPage()">التالي ❯</button>
-            <span class="page-info" id="pageInfo">صفحة 1 من 1</span>
+            <span class="page-info" id="pageInfo"></span>
             <button id="prevBtn" onclick="prevPage()">❮ السابق</button>
         </div>
     </div>
 
+    <div class="modal-overlay" id="zoomModal" onclick="closeModal(event)">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <span class="close-btn" onclick="closeModal(event)">&times;</span>
+            <div id="modalStage" style="width: 100%; height: 100%;"></div>
+        </div>
+    </div>
+
     <script>
-        // 1. الرابط الأساسي للسيرفر
         const baseUrl = "https://res353loar.creaction-network.com/equip_show/";
         
-        // 2. قائمة بأسماء المطايا (هنا لازم تضيف كل الأسماء اللي تعرفها)
-        const mountNames = [
-            "mount_skhorse_red",
-            "mount_skhorse_blue", // مجرد مثال
-            "mount_dragon_gold",  // مجرد مثال
-            "mount_wolf_dark",    // مجرد مثال
-            "mount_tiger_white",  // مجرد مثال
-            "mount_lion_fire",    // مجرد مثال
-            "mount_bear_ice",     // مجرد مثال
-            "mount_eagle_wind",   // مجرد مثال
-            "mount_phoenix",      // بداية الصفحة الثانية (مثال)
-            "mount_griffin"       // مثال
-            // ضيف كل الأسماء هنا بين علامات تنصيص ومفصولة بفاصلة
+        const mountPaths = [
+            "mount_armorhorse_white/2.swf", "mount_horse_white/2.swf", "mount_kingcrab/2_34d35278.swf", "mount_mountsky/2_509f1ee5.swf", "mount_tank/2_dc79bcc7.swf", "mount_tech/2_d3c3b7da.swf", "mount_motor_bike/2_4a9e3e3c.swf", "mount_fighter/2_74bf3eca.swf", "mount_airship/2_470aa771.swf", "mount_encke/2_d9c75fe4.swf", "mount_ironwolf/2_6a21a636.swf", "mount_oldtech/2.swf", "mount_thomas/2_0a7ba385.swf", "mount_buggies/2_e7a04723.swf", "mount_wheelbarrow/2_84588cb9.swf", "mount_plane_pixel/2_ed27ee9f.swf", "mount_spaceshuttle/2_0eb02919.swf", "mount_ship_newyear/2_4d0bcdd8.swf", "mount_terminator/2_06c85084.swf", "mount_machine_horse/2_ac342f41.swf", "mount_cyberlobster/2_644697bf.swf", "mount_carousel/2_a785e053.swf", "mount_iron_element/2_27eae2b8.swf", "mount_mechanicallion/2_66d2252c.swf", "mount_animal/2_f7d1c508.swf", "mount_ironduck/2_cce7bae4.swf", "mount_bomb2017/2_f9687901.swf", "mount_mechanicalairplane/2_a7465f88.swf", "mount_silvertale/2_a723c1a1.swf", "mount_death_riding/2_a20753eb.swf", "mount_goblin/2.swf", "mount_infrapioneer/2_1c6b3efe.swf", "mount_dinosaur_hk/2_98229054.swf", "mount_smilodon/2_2173cae3.swf", "mount_doubleheadeagle/2_2f4ed5fb.swf", "mount_estuarine_crocodile/2_4d7de153.swf", "mount_tiger360/2_714a921c.swf", "mount_steelcrawl/2.swf", "mount_bear/2.swf", "mount_whitetiger2016/2_4420d8f9.swf", "mount_magicscythe/2_35f29ca1.swf", "mount_leopard_yellow/2.swf", "mount_hytriceratops/2.swf", "mount_snowleopard/2.swf", "mount_leopard_white/2.swf", "mount_ghostcat/2.swf", "mount_icebear/2_2e1619a6.swf", "mount_elephant09/2_5361bcb3.swf", "mount_spider_latosolic/2_080f7795.swf", "mount_glassesbear/2_969eea39.swf", "mount_wolf_white/2.swf", "mount_cerberus/2_04b5e802.swf", "mount_starshadowdragon/2_39586154.swf", "mount_dreamdragon/2_6badde8e.swf", "mount_lizard_thunder/2_bd7fd1b7.swf", "mount_rhino/2_65d1d6c7.swf", "mount_olddragon/2.swf", "mount_levitra/2_4da15f97.swf", "mount_leopard_black/2.swf", "mount_death/2_b12f467f.swf", "mount_redcrab/2_efc655e2.swf", "mount_battlebear2016/2_081f2e3c.swf", "mount_dragon_starsteel/2_0dbf62c6.swf", "mount_kingkong_white/2_acca48ac.swf", "mount_snake_poison/2_1893995d.swf", "mount_blanche/2_dbc3554a.swf", "mount_blackcrocodile/2_7e6fe5ea.swf", "mount_fusionfire/2_2786a8b8.swf", "mount_gilamonster/2_9a230095.swf", "mount_divinemiracle/2_e2a85de1.swf", "mount_pitaya/2_e5319de4.swf", "mount_winterforce/2_842770cf.swf", "mount_avatar/2_4e7e9268.swf", "mount_christmas2016/2_cb6c8279.swf", "mount_shark/2_f07e8abf.swf", "mount_banana/2_ebbc5a61.swf", "mount_broom/2_17f498f9.swf", "mount_blueshark/2_33cd263d.swf", "mount_battleax_car/2_5aa098d6.swf", "mount_archangel/2_ca3170d1.swf", "mount_sealion_original/2_1692c326.swf", "mount_landbird02/2.swf", "mount_elephant/2.swf", "mount_springlucky_dog/2_c19a6338.swf", "mount_cnm_yellow/2.swf", "mount_butterwoodhorse/2_fad987a4.swf", "mount_horse_default/2.swf", "mount_corgi/2_9c9060b6.swf", "mount_guinea_pig/2_ac4d271d.swf", "mount_donkey/2_959779bc.swf", "mount_cnm_black/2.swf", "mount_rabbit_white/2.swf", "mount_cnm_white/2.swf", "mount_horse_black/2.swf", "mount_landbird/2.swf", "mount_heavyhorse/2_31612f32.swf", "mount_xmasdeer/2.swf", "mount_silkvelvetcamel/2_78915faf.swf", "mount_mushroomspirit/2_c6a8296a.swf", "mount_mercury/2_8cfdaacf.swf", "mount_chloris/2_33fb60b8.swf", "mount_childbike/2_a6a657b4.swf", "mount_bimeng/2_84f2d8b4.swf", "mount_butterfly_color/2_681a4c06.swf", "mount_jinyaoyan/2_841a372e.swf", "mount_nightowl/2_99dafd36.swf", "mount_carving/2_9448633d.swf", "mount_suan_ni/2_71b970a1.swf", "mount_Mars/2_45e25a84.swf", "mount_armorhorse_black/2.swf", "mount_dinosaur_toy/2_fc202fa4.swf", "mount_daffy_duck/2_23de6667.swf", "mount_bizarre_griffin/2_6799196b.swf", "mount_rabbit_ear/2_0b5edca8.swf", "mount_flyingfish/2_479dadc8.swf", "mount_hippo/2_993039d7.swf", "mount_armorhorse_chestnut/2.swf", "mount_dragonvip/2.swf", "mount_skhorse_blue/2.swf", "mount_triceratops/2.swf", "mount_owl/2_36e2731d.swf", "mount_titan/2_477fb3e5.swf", "mount_unicorns_chestnut/2.swf", "mount_lava_horse/2.swf", "mount_pulao/2_6ab26add.swf", "mount_bluecat/2_d569446f.swf", "mount_nightdragon/2_dc3c3416.swf", "mount_castlebat/2_90cbdf03.swf", "mount_arcaneguardian/2_cf05aaab.swf", "mount_abyssbeast/2.swf", "mount_yearbeast/2.swf", "mount_leopard_red/2.swf", "mount_weasel_white/2.swf", "mount_dichotoma/2_b9e6c227.swf", "mount_bird_beast/2_40c99c5d.swf", "mount_bluefox/2_f99eab2e.swf", "mount_griffin/2_7e54f746.swf", "mount_horse_sea/2_d462ceca.swf", "mount_leopard_youmin/2_ffb5b697.swf", "mount_horuseagle/2_68174334.swf", "mount_element_fire/2_06e89434.swf", "mount_mengze/2_52efb8ac.swf", "mount_dolphin_pink/2_c6a17b71.swf", "mount_thanksgiving2017/2_3b95f219.swf", "mount_christmas2017/2_f1d35d5f.swf", "mount_ghostsedanchair/2_29784dbe.swf", "mount_waterfall/2_d2a07fde.swf", "mount_swarovski/2_1f998bb9.swf", "mount_carrot/2_d75e541a.swf", "mount_forestshuttle/2_02858464.swf", "mount_starcharger/2_4d6756a8.swf", "mount_dewdrop/2_6f2b97aa.swf", "mount_halley/2_c80ebdb9.swf", "mount_master_wugui/2_c95cddc9.swf", "mount_white_fox/2_b6192a0f.swf", "mount_puffer/2.swf", "mount_whale/2_646eb03e.swf", "mount_cooldog/2_75a2e372.swf", "mount_ship_biyi/2_caff0552.swf", "mount_wrasse_sushi/2_77f05565.swf", "mount_totoro/2_c799fa9d.swf", "mount_pumpkincar/2_e0fb102b.swf", "mount_minidragon_flies/2_b0263f62.swf", "mount_dog_pearl/2_15070d76.swf", "mount_fallingcloud/2_ca19fcb7.swf", "mount_littlepinkrocket/2_eee41f83.swf", "mount_penguin_travelling/2_fb24b27c.swf", "mount_gladiator_beast/2_467bdbe5.swf", "mount_monkey/2_f8a42b67.swf", "mount_squirrel_snow/2_39f16fbe.swf", "mount_desertcamel/2_c8fbf0f3.swf", "mount_magpiebridgefacing/2_8ff5cfa0.swf", "mount_snowkangaroo/2_79335060.swf", "mount_armorhorse_default/2.swf", "mount_verdantsteed/2_55e2ace5.swf", "mount_crimsonseapearl/2_ea1079bb.swf", "mount_goldsheep/2_a8ca8174.swf", "mount_forever/2_b55ded03.swf", "mount_whitecamel/2_a2e2b1b1.swf", "mount_pathfinding_snow/2_e2f74428.swf", "mount_skullantelope/2_7bc6647f.swf", "mount_pinkwreath/2_59b227b4.swf", "mount_firefox2017/2_ecd03d9a.swf", "mount_ricepudding_donkey/2_1f085c0d.swf", "mount_sheep_argali/2_74568f58.swf", "mount_heavyhorse01/2_5df81ddc.swf", "mount_hyhusky/2.swf", "mount_whitebull/2.swf", "mount_yellow_duck/2_04931be8.swf", "mount_polatouche/2_4e1358c5.swf", "mount_lynx/2_e1a9eaf2.swf", "mount_flamingos/2_8c61f1c9.swf", "mount_snowtiger/2_349c3f1c.swf", "mount_stonelion/2_e763cbff.swf", "mount_peacock_pink/2_e3ca2d98.swf", "mount_rabbit_fly/2_6e65cf9c.swf", "mount_threetiamat/2_59ccd003.swf", "mouth_horse_hongkong/2_8bf379f3.swf", "mount_loong/2_b9cfc00b.swf", "mount_blue_spider/2_08b5aba6.swf", "mount_ray/2_f172fdd0.swf", "mount_bonegragon/2_301a3a2a.swf", "mount_lamassu/2_78b2dd6a.swf", "mount_zhuyan/2_23334d72.swf", "mount_qinglong/2_90ebe313.swf", "mount_shixianggui/2_f9113599.swf", "mount_dragon_elves/2_ef7a9e24.swf", "mount_vessel_dragon/2_38c3ad27.swf", "mount_corsair/2_1c6e7b57.swf", "mount_sound_screw/2_75685c69.swf", "mount_longgui/2_f6e33648.swf", "mount_eagleitiger/2_76f052e0.swf", "mount_combinefly/2_be9821f0.swf", "mount_charming/2_8c05a911.swf", "mount_lightgod/2_91019138.swf", "mount_minicar/2_c06e7d45.swf", "mount_deadlypoison/2_007ca24a.swf", "mount_frostirondragon/2_8e9b69c2.swf", "mount_djhorse/2_c109f3d7.swf", "mount_forestritualbeast/2_ee77ee8a.swf", "mount_lightballcar/2_41e41c55.swf", "mount_hellfire/2_10ea6b3c.swf", "mount_angmar/2_cd9efd68.swf", "mount_blueguardian/2_1b4ce7fa.swf", "mount_ghosttiger/2_37f7d5bf.swf", "mount_starpanic/2_5de27b62.swf", "mount_darkflamedragon/2_fde16e20.swf", "mount_lightarmor/2_aba427bb.swf", "mount_scavenger/2_35f8630d.swf", "mount_seaelement/2_eae650d8.swf", "mount_leikesai/2_dcb3593d.swf", "mount_shadowgharry/2_be54d772.swf", "mount_kittyblanket/2_31d5e0a0.swf", "mount_magicray/2_c2ac727f.swf", "mount_sirius/2_3788fcfa.swf", "mount_xmashut/2_17d30735.swf", "mount_snowdruid/2_f5fdfde1.swf", "mount_icephoenix/2_d22d1c67.swf", "mount_iceswing/2_5ca6fa59.swf", "mount_serpentbird/2_80545bbb.swf", "mount_fortunereunion/2_6c1fa359.swf", "mount_goldrite/2_237c6d1c.swf", "mount_taurus/2_eb040607.swf", "mount_titandragon/2.swf", "mount_cloudbeast/2_a2ade9c6.swf", "mount_iceleopard/2_e3dbc687.swf", "mount_tigervip/2_0e986b38.swf", "mount_chimera/2.swf", "mount_spider/2_dd781b3a.swf", "mount_capricornus/2_d19a636a.swf", "mount_swiftzebra/2_277e4c82.swf", "mount_mid_autumn2015/2_e1365656.swf", "mount_leo/2_2c58e8cc.swf", "mount_pangolin/2_94bec81e.swf", "mount_chameleon/2.swf", "mount_libra/2_1a7e4f2e.swf", "mount_treeman/2_42b91731.swf", "mount_devilray/2_cc68201b.swf", "mount_parrot/2.swf", "mount_werwolf/2.swf", "mount_easterbunny/2.swf", "mount_lion_hk/2.swf", "mount_bulecat/2.swf", "mount_gulfshadow/2_a741849a.swf", "mount_xiachedan/2_632e08a9.swf", "mount_linlong/2_47ec0192.swf", "mount_kinglion/2.swf", "mount_pumpkin/2_58fd989a.swf", "mount_grinch/2_464a7262.swf", "mount_redtiger/2.swf", "mount_sorrowofblood/2_93bac351.swf", "mount_starmoonchariot/2_0429f1dd.swf", "mount_phantomelement/2_0f715b4a.swf", "mount_tapir/2.swf", "mount_panda37wan/2.swf", "mount_moth/2_74069d4d.swf", "mount_flying_goldenfire/2_e8f643f3.swf", "mount_whitewing/2_8c6117a8.swf", "mount_capricornus2/2_4478a1d0.swf", "mount_panda/2.swf", "mount_elfdragon/2_9ac595e9.swf", "mount_youlingshijiu2017/2_d2a76316.swf", "mount_greenunicorn/2_2d3aa603.swf", "mount_bull_rage/2_d8d85531.swf", "mount_insect_jiaoxian/2_1b7c5bfc.swf", "mount_yueye/2_d422088d.swf", "mount_yaoguaisan/2_f5998120.swf", "mount_golden_fire_dragon/2_3e107c18.swf", "mount_ghostlight/2_83b41755.swf", "mount_sonic/2_21ef0422.swf", "mount_woodenhorse/2_e4402c2d.swf", "mount_waterbaby/2_8b8864a2.swf", "mount_greendeer/2_6aca5378.swf", "mount_canevine/2_5909cf27.swf", "mount_scarleteye/2_1951eeb8.swf", "mount_starsmoonbrightly/2_b7773550.swf", "mount_snowman/2.swf", "mount_fox/2.swf", "mount_deepphantom/2_ffd51b05.swf", "mount_crimsonlotusfire/2_9dbbbdd2.swf", "mount_fly01/2.swf", "mount_whitebeast/2_51d6c762.swf", "mount_scorpion/2_60c426fe.swf", "mount_cancer/2.swf", "mount_stingray/2_0b11f948.swf", "mount_lighting_dragon/2_b2bd8429.swf", "mount_unicorns_black/2.swf", "mount_virgo/2.swf", "mount_aquarius/2_ecb59e48.swf", "mount_2015_turkey/2.swf", "mount_newunicorn_white/2.swf", "mount_panda01/2_fe1f0002.swf", "mount_dragon_shadow/2.swf", "mount_darkrundragon/2_1f2d8c3e.swf", "mount_lightning_blue/2_3d0726e4.swf", "mount_quicksand_dragon/2_50cbf4e0.swf"
         ];
 
         let currentPage = 1;
-        const itemsPerPage = 8; // 4 في الصف الأول + 4 في الصف الثاني
+        const itemsPerPage = 8;
+        const totalPages = Math.ceil(mountPaths.length / itemsPerPage);
 
-        function renderGallery() {
-            const gallery = document.getElementById('gallery');
-            gallery.innerHTML = ''; // مسح القديم
+        function showPage(page) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
 
-            // حساب المطايا اللي هتتعرض في الصفحة الحالية
-            const startIndex = (currentPage - 1) * itemsPerPage;
-            const endIndex = startIndex + itemsPerPage;
-            const currentMounts = mountNames.slice(startIndex, endIndex);
-
-            window.RufflePlayer = window.RufflePlayer || {};
-            const ruffle = window.RufflePlayer.newest();
-
-            // رسم كل مطية في الصفحة
-            currentMounts.forEach(mount => {
-                const box = document.createElement('div');
-                box.className = 'mount-box';
-                
-                // إضافة اسم المطية تحت
-                const nameLabel = document.createElement('div');
-                nameLabel.className = 'mount-name';
-                nameLabel.innerText = mount;
-                box.appendChild(nameLabel);
-
-                // إضافة مشغل الفلاش
-                const player = ruffle.createPlayer();
-                player.style.width = "100%";
-                player.style.height = "100%";
-                box.appendChild(player);
-                gallery.appendChild(box);
-
-                // تحميل ملف الـ SWF عبر الباك إند بتاعنا
-                const fullUrl = `${baseUrl}${mount}/2.swf`;
-                player.load(`/api/proxy_swf?url=${encodeURIComponent(fullUrl)}`);
-            });
-
-            updatePagination();
-        }
-
-        function updatePagination() {
-            const totalPages = Math.ceil(mountNames.length / itemsPerPage) || 1;
-            document.getElementById('pageInfo').innerText = `صفحة ${currentPage} من ${totalPages}`;
+            let pageDiv = document.getElementById(`page-${page}`);
             
-            // تعطيل وتشغيل الأزرار
+            if (!pageDiv) {
+                pageDiv = document.createElement('div');
+                pageDiv.id = `page-${page}`;
+                pageDiv.className = 'page active';
+                
+                const start = (page - 1) * itemsPerPage;
+                const end = start + itemsPerPage;
+                const currentMounts = mountPaths.slice(start, end);
+
+                window.RufflePlayer = window.RufflePlayer || {};
+                const ruffle = window.RufflePlayer.newest();
+
+                currentMounts.forEach(path => {
+                    const box = document.createElement('div');
+                    box.className = 'mount-box';
+                    box.onclick = () => openModal(path);
+                    
+                    let cleanName = path.split('/')[0].replace('mount_', '').replace('mouth_', '');
+                    
+                    const nameLabel = document.createElement('div');
+                    nameLabel.className = 'mount-name';
+                    nameLabel.innerText = cleanName;
+                    box.appendChild(nameLabel);
+
+                    const player = ruffle.createPlayer();
+                    player.style.width = "100%";
+                    player.style.height = "100%";
+                    box.appendChild(player);
+
+                    const fullUrl = `${baseUrl}${path}`;
+                    player.load(`/api/proxy_swf?url=${encodeURIComponent(fullUrl)}`);
+                    
+                    pageDiv.appendChild(box);
+                });
+
+                document.getElementById('gallery-container').appendChild(pageDiv);
+            } else {
+                pageDiv.classList.add('active');
+            }
+
+            document.getElementById('pageInfo').innerText = `صفحة ${currentPage} من ${totalPages}`;
             document.getElementById('prevBtn').disabled = currentPage === 1;
             document.getElementById('nextBtn').disabled = currentPage === totalPages;
         }
 
         function nextPage() {
-            const totalPages = Math.ceil(mountNames.length / itemsPerPage);
             if (currentPage < totalPages) {
                 currentPage++;
-                renderGallery();
+                showPage(currentPage);
             }
         }
 
         function prevPage() {
             if (currentPage > 1) {
                 currentPage--;
-                renderGallery();
+                showPage(currentPage);
             }
         }
 
-        // تشغيل العرض أول ما الصفحة تفتح
-        window.addEventListener("load", renderGallery);
+        let modalPlayer = null;
+
+        function openModal(path) {
+            const modal = document.getElementById('zoomModal');
+            const stage = document.getElementById('modalStage');
+            
+            modal.style.display = 'flex';
+            stage.innerHTML = '';
+            
+            window.RufflePlayer = window.RufflePlayer || {};
+            const ruffle = window.RufflePlayer.newest();
+            modalPlayer = ruffle.createPlayer();
+            modalPlayer.style.width = "100%";
+            modalPlayer.style.height = "100%";
+            stage.appendChild(modalPlayer);
+            
+            const fullUrl = `${baseUrl}${path}`;
+            modalPlayer.load(`/api/proxy_swf?url=${encodeURIComponent(fullUrl)}`);
+        }
+
+        function closeModal(event) {
+            document.getElementById('zoomModal').style.display = 'none';
+            if (modalPlayer) {
+                document.getElementById('modalStage').innerHTML = '';
+                modalPlayer = null;
+            }
+        }
+
+        window.addEventListener("load", () => {
+            showPage(currentPage);
+        });
     </script>
 </body>
 </html>
