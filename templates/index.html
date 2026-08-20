@@ -239,6 +239,9 @@
 
             const pageDiv = document.createElement('div');
             pageDiv.className = 'page';
+            // نضيف الـ pageDiv للـ DOM فورًا (قبل أي مشغّل Ruffle) عشان أي عنصر
+            // player هنعمله بعد كده يبقى متصل بالصفحة من ساعة إنشائه
+            gallery.appendChild(pageDiv);
 
             window.RufflePlayer = window.RufflePlayer || {};
             const ruffle = window.RufflePlayer.newest();
@@ -294,8 +297,6 @@
                         });
                 }
             });
-
-            gallery.appendChild(pageDiv);
 
             document.getElementById('pageInfo').innerText = `صفحة ${currentPage} من ${totalPages}`;
             document.getElementById('prevBtn').disabled = currentPage === 1;
