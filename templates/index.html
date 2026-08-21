@@ -181,7 +181,7 @@
 <body>
 
     <div class="container">
-        <h2>معرض مطايا Legend Online</h2>
+        <h2>معرض مطايا الأسطورة أونلاين</h2>
         
         <div id="gallery-container"></div>
         
@@ -217,54 +217,44 @@
         ];
 
         const swfCache = new Map();
+        const pendingPrefetch = new Set();
         let currentPage = 1;
         const itemsPerPage = 8;
         const totalPages = Math.ceil(mountPaths.length / itemsPerPage);
         let currentModalIndex = 0;
 
-        function showPage(page) {
+        // الـ "Pool": مصفوفة ثابتة من الـ slots (كل واحد فيه box + player + ...)
+        // بتتبني مرة واحدة بس أول ما الصفحة تفتح، وبعد كده كل تنقل بين
+        // الصفحات بيعيد استخدام نفس عناصر الـ Ruffle، مش بيهدمها وينشئها
+        // من جديد. ده اللي كان بيسبب اللاج وقت تقليب الصفحات.
+        let pool = [];
+        let poolReady = false;
+
+        function ensurePool() {
+            if (poolReady) return;
+
             const gallery = document.getElementById('gallery-container');
-            
-            const oldPlayers = gallery.querySelectorAll('*');
-            for(let i=0; i<oldPlayers.length; i++) {
-                if(oldPlayers[i].tagName && oldPlayers[i].tagName.toLowerCase().includes('ruffle')) {
-                    oldPlayers[i].remove();
-                }
-            }
-            gallery.innerHTML = ''; 
-
-            const start = (page - 1) * itemsPerPage;
-            const end = start + itemsPerPage;
-            const currentMounts = mountPaths.slice(start, end);
-
             const pageDiv = document.createElement('div');
             pageDiv.className = 'page';
-            // نضيف الـ pageDiv للـ DOM فورًا (قبل أي مشغّل Ruffle) عشان أي عنصر
-            // player هنعمله بعد كده يبقى متصل بالصفحة من ساعة إنشائه
             gallery.appendChild(pageDiv);
 
             window.RufflePlayer = window.RufflePlayer || {};
             const ruffle = window.RufflePlayer.newest();
 
-            currentMounts.forEach((path, localIndex) => {
-                const globalIndex = start + localIndex;
+            for (let i = 0; i < itemsPerPage; i++) {
                 const box = document.createElement('div');
                 box.className = 'mount-box';
-                
+
                 const loading = document.createElement('div');
                 loading.className = 'loading-text';
-                loading.innerText = '⏳ جاري التحميل...';
                 box.appendChild(loading);
-                
+
                 const overlay = document.createElement('div');
                 overlay.className = 'click-overlay';
-                overlay.onclick = () => openModal(globalIndex);
                 box.appendChild(overlay);
-                
-                let cleanName = path.split('/')[0].replace('mount_', '').replace('mouth_', '');
+
                 const nameLabel = document.createElement('div');
                 nameLabel.className = 'mount-name';
-                nameLabel.innerText = cleanName;
                 box.appendChild(nameLabel);
 
                 const player = ruffle.createPlayer();
@@ -275,12 +265,70 @@
                 player.style.left = "0";
                 player.style.zIndex = "1";
                 box.appendChild(player);
-                
+
                 pageDiv.appendChild(box);
+                pool.push({ box, player, loading, overlay, nameLabel });
+            }
+
+            poolReady = true;
+        }
+
+        // بيجيب بايتات ملفات الصفحة اللي جنب الصفحة الحالية في الخلفية
+        // وبيحطها في الكاش، عشان لما المستخدم يدوس التالي/السابق فعليًا
+        // يلاقي الملف جاهز من غير ما يستنى تحميل من السيرفر
+        function prefetchAdjacentPages() {
+            [currentPage - 1, currentPage + 1].forEach(p => {
+                if (p < 1 || p > totalPages) return;
+                const start = (p - 1) * itemsPerPage;
+                mountPaths.slice(start, start + itemsPerPage).forEach(path => {
+                    if (swfCache.has(path) || pendingPrefetch.has(path)) return;
+                    pendingPrefetch.add(path);
+                    const fullUrl = `${baseUrl}${path}`;
+                    fetch(`/api/proxy_swf?url=${encodeURIComponent(fullUrl)}`)
+                        .then(res => res.blob())
+                        .then(blob => swfCache.set(path, URL.createObjectURL(blob)))
+                        .catch(() => {})
+                        .finally(() => pendingPrefetch.delete(path));
+                });
+            });
+        }
+
+        function showPage(page) {
+            ensurePool();
+
+            const start = (page - 1) * itemsPerPage;
+            const end = start + itemsPerPage;
+            const currentMounts = mountPaths.slice(start, end);
+
+            pool.forEach((slot, localIndex) => {
+                if (localIndex >= currentMounts.length) {
+                    // آخر صفحة ممكن يكون فيها عناصر أقل من itemsPerPage
+                    slot.box.style.visibility = 'hidden';
+                    slot.token = (slot.token || 0) + 1;
+                    return;
+                }
+                slot.box.style.visibility = 'visible';
+
+                const path = currentMounts[localIndex];
+                const globalIndex = start + localIndex;
+
+                // كل ما الـ slot يتاخد لمسار جديد، رقم الـ token بيتغير؛
+                // ده بيخلينا نتجاهل أي نتيجة fetch قديمة توصل بعد ما
+                // المستخدم يكون خلاص قلّب لصفحة تانية
+                slot.token = (slot.token || 0) + 1;
+                const myToken = slot.token;
+
+                slot.loading.innerText = '⏳ جاري التحميل...';
+                slot.loading.style.color = '#A9B7C6';
+                slot.loading.style.display = 'block';
+                slot.overlay.onclick = () => openModal(globalIndex);
+
+                let cleanName = path.split('/')[0].replace('mount_', '').replace('mouth_', '');
+                slot.nameLabel.innerText = cleanName;
 
                 if (swfCache.has(path)) {
-                    loading.style.display = 'none';
-                    player.load(swfCache.get(path));
+                    slot.loading.style.display = 'none';
+                    slot.player.load(swfCache.get(path));
                 } else {
                     const fullUrl = `${baseUrl}${path}`;
                     fetch(`/api/proxy_swf?url=${encodeURIComponent(fullUrl)}`)
@@ -288,12 +336,14 @@
                         .then(blob => {
                             const objUrl = URL.createObjectURL(blob);
                             swfCache.set(path, objUrl);
-                            loading.style.display = 'none';
-                            player.load(objUrl);
+                            if (slot.token !== myToken) return; // الصفحة اتغيرت قبل ما التحميل يخلص
+                            slot.loading.style.display = 'none';
+                            slot.player.load(objUrl);
                         })
                         .catch(err => {
-                            loading.innerText = '❌ خطأ';
-                            loading.style.color = '#FF3366';
+                            if (slot.token !== myToken) return;
+                            slot.loading.innerText = '❌ خطأ';
+                            slot.loading.style.color = '#FF3366';
                         });
                 }
             });
@@ -301,6 +351,8 @@
             document.getElementById('pageInfo').innerText = `صفحة ${currentPage} من ${totalPages}`;
             document.getElementById('prevBtn').disabled = currentPage === 1;
             document.getElementById('nextBtn').disabled = currentPage === totalPages;
+
+            prefetchAdjacentPages();
         }
 
         function nextPage() {
@@ -319,32 +371,37 @@
 
         let modalPlayer = null;
 
-        function openModal(index) {
-            currentModalIndex = index;
-            const path = mountPaths[index];
-            const modal = document.getElementById('zoomModal');
-            const stage = document.getElementById('modalStage');
-            
-            modal.style.display = 'flex';
-            
-            if (modalPlayer) {
-                modalPlayer.remove();
-                modalPlayer = null;
-            }
-            stage.innerHTML = '';
-            
+        function ensureModalPlayer() {
+            if (modalPlayer) return modalPlayer;
             window.RufflePlayer = window.RufflePlayer || {};
             const ruffle = window.RufflePlayer.newest();
             modalPlayer = ruffle.createPlayer();
             modalPlayer.style.width = "100%";
             modalPlayer.style.height = "100%";
-            stage.appendChild(modalPlayer);
-            
+            document.getElementById('modalStage').appendChild(modalPlayer);
+            return modalPlayer;
+        }
+
+        function openModal(index) {
+            currentModalIndex = index;
+            const path = mountPaths[index];
+            const modal = document.getElementById('zoomModal');
+
+            modal.style.display = 'flex';
+
+            const player = ensureModalPlayer();
+
             if (swfCache.has(path)) {
-                modalPlayer.load(swfCache.get(path));
+                player.load(swfCache.get(path));
             } else {
                 const fullUrl = `${baseUrl}${path}`;
-                modalPlayer.load(`/api/proxy_swf?url=${encodeURIComponent(fullUrl)}`);
+                fetch(`/api/proxy_swf?url=${encodeURIComponent(fullUrl)}`)
+                    .then(res => res.blob())
+                    .then(blob => {
+                        const objUrl = URL.createObjectURL(blob);
+                        swfCache.set(path, objUrl);
+                        player.load(objUrl);
+                    });
             }
         }
 
@@ -361,12 +418,9 @@
         }
 
         function closeModal(event) {
+            // بنسيب المشغّل حي ومخفي بس، بدل ما نهدمه وننشئه من جديد
+            // كل مرة المستخدم يفتح موديل تاني
             document.getElementById('zoomModal').style.display = 'none';
-            if (modalPlayer) {
-                modalPlayer.remove();
-                document.getElementById('modalStage').innerHTML = '';
-                modalPlayer = null;
-            }
         }
 
         window.addEventListener("load", () => {
