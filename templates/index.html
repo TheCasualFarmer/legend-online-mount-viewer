@@ -181,7 +181,7 @@
 <body>
 
     <div class="container">
-        <h2>معرض مطايا الأسطورة أونلاين</h2>
+        <h2>معرض مطايا Legend Online</h2>
         
         <div id="gallery-container"></div>
         
@@ -300,6 +300,11 @@
             const end = start + itemsPerPage;
             const currentMounts = mountPaths.slice(start, end);
 
+            // المرحلة 1: تحديث كل حاجة "خفيفة" فورًا (الأسماء، الظهور،
+            // أزرار التنقل) عشان الانتقال يحس إنه فوري، ونجهّز قايمة
+            // بالتحميلات المطلوبة (الجزء الثقيل) عشان نأخّرها شوية
+            const jobs = [];
+
             pool.forEach((slot, localIndex) => {
                 if (localIndex >= currentMounts.length) {
                     // آخر صفحة ممكن يكون فيها عناصر أقل من itemsPerPage
@@ -316,7 +321,6 @@
                 // ده بيخلينا نتجاهل أي نتيجة fetch قديمة توصل بعد ما
                 // المستخدم يكون خلاص قلّب لصفحة تانية
                 slot.token = (slot.token || 0) + 1;
-                const myToken = slot.token;
 
                 slot.loading.innerText = '⏳ جاري التحميل...';
                 slot.loading.style.color = '#A9B7C6';
@@ -325,6 +329,20 @@
 
                 let cleanName = path.split('/')[0].replace('mount_', '').replace('mouth_', '');
                 slot.nameLabel.innerText = cleanName;
+
+                jobs.push({ slot, path, myToken: slot.token });
+            });
+
+            document.getElementById('pageInfo').innerText = `صفحة ${currentPage} من ${totalPages}`;
+            document.getElementById('prevBtn').disabled = currentPage === 1;
+            document.getElementById('nextBtn').disabled = currentPage === totalPages;
+
+            // المرحلة 2: التحميل الفعلي لكل SWF — بس بدل ما الـ 8 يحصلوا
+            // كلهم مرة واحدة (وده اللي بيسبب التجميد اللحظي)، بنوزّعهم
+            // على أكتر من "فريم" عشان المتصفح ياخد نفسه بينهم ويفضل سلس
+            function runJob(i) {
+                if (i >= jobs.length) return;
+                const { slot, path, myToken } = jobs[i];
 
                 if (swfCache.has(path)) {
                     slot.loading.style.display = 'none';
@@ -346,11 +364,10 @@
                             slot.loading.style.color = '#FF3366';
                         });
                 }
-            });
 
-            document.getElementById('pageInfo').innerText = `صفحة ${currentPage} من ${totalPages}`;
-            document.getElementById('prevBtn').disabled = currentPage === 1;
-            document.getElementById('nextBtn').disabled = currentPage === totalPages;
+                requestAnimationFrame(() => runJob(i + 1));
+            }
+            requestAnimationFrame(() => runJob(0));
 
             prefetchAdjacentPages();
         }
@@ -418,9 +435,15 @@
         }
 
         function closeModal(event) {
-            // بنسيب المشغّل حي ومخفي بس، بدل ما نهدمه وننشئه من جديد
-            // كل مرة المستخدم يفتح موديل تاني
             document.getElementById('zoomModal').style.display = 'none';
+            // هنا بس بنهدم مشغّل الـ Modal فعلًا (عنصر واحد، فالتكلفة
+            // مهملة)، عشان مايفضلش شغال ومستهلك معالج في الخلفية وهو
+            // مخفي. أثناء التنقل جوه الموديل نفسه (next/prev) بنفضل
+            // نستخدم نفس العنصر من غير هدم، وده اللي كان بيدّي التحسين.
+            if (modalPlayer) {
+                modalPlayer.remove();
+                modalPlayer = null;
+            }
         }
 
         window.addEventListener("load", () => {
